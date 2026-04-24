@@ -1,0 +1,37 @@
+# ── Web Framework ──────────────────────────────────────────
+fastapi==0.135.1
+uvicorn[standard]==0.41.0        # ASGI server（含 watchfiles hot-reload）
+starlette==0.52.1                # FastAPI 底層（自動跟著 fastapi）
+python-multipart==0.0.22         # 表單 / 圖片上傳
+
+# ── Data Validation ────────────────────────────────────────
+pydantic==2.12.5
+pydantic[email]==2.12.5          # 含 email-validator，驗證 Email 格式
+python-dotenv==1.2.2             # 讀取 .env 環境變數
+
+# ── Database ───────────────────────────────────────────────
+SQLAlchemy==2.0.49               # ORM（async 模式）
+asyncpg==0.30.0                  # 非同步 PostgreSQL driver（SQLAlchemy async 需要）
+psycopg2-binary==2.9.12          # 同步 driver（Alembic migration 需要）
+alembic==1.16.1                  # DB Schema 版本控制 / migration
+
+# ── Cache & Distributed Lock ───────────────────────────────
+redis[asyncio]==5.2.1            # Redis client（含 async 支援）
+                                 # 用途：分散式鎖、JWT 黑名單
+
+# ── Auth ───────────────────────────────────────────────────
+python-jose[cryptography]==3.5.0 # JWT 簽發與驗證（HS256）
+passlib[bcrypt]==1.7.4           # 密碼 hash（Email 登入用）
+bcrypt==4.0.1                    # passlib 的 bcrypt backend
+cryptography==46.0.6             # python-jose 依賴
+
+# ── OAuth ──────────────────────────────────────────────────
+httpx==0.28.1                    # async HTTP client
+                                 # 用途：呼叫 Google / LINE OAuth token endpoint
+
+# ── File Storage（Cloudflare R2）──────────────────────────
+boto3==1.38.0                    # AWS S3 相容 API，R2 用這個上傳圖片
+
+# ── Testing ────────────────────────────────────────────────
+pytest==8.3.5
+pytest-asyncio==0.26.0           # async test 支援

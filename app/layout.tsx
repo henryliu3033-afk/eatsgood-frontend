@@ -20,8 +20,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-TW" className={`${geist.variable} h-full antialiased`}>
-      <body className="min-h-full" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
+    <html lang="zh-TW" className={`${geist.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="min-h-full bg-bg text-ink transition-colors duration-300">
+        {/* 阻斷渲染的腳本，解決深色模式閃爍 FOUC */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try {
+                let isDark = localStorage.getItem('eatsgood-theme') === 'dark' ||
+                            (!('eatsgood-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) document.documentElement.classList.add('dark');
+              } catch (_) {}
+            `,
+          }}
+        />
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>

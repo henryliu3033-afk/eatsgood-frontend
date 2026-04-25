@@ -29,7 +29,7 @@
 路徑：C:\Users\henry\coding-space\eatsgood-backend\（獨立 repo）
 部署：Railway
 
-資料庫：PostgreSQL 17（本地已建好 eatsgood-db，Railway 正式環境）
+資料庫：PostgreSQL 17（本地 eatsgood-db，Railway 正式環境）
 快取 / 鎖：Redis（Docker 本地開發）
 圖片儲存：Cloudflare R2（免費出流量，S3 相容 API）
 登入：FastAPI 自建（Google OAuth + LINE OAuth + Email）
@@ -38,33 +38,59 @@ AI 摘要：暫緩
 
 ---
 
-## 3. 資料庫 Schema（已確認）
+## 3. 本地環境設定（已確認可運作）
+
+### 後端環境
+- **Python venv**：`C:\Users\henry\coding-space\PYTHON-FASTAPI\.venv`
+- **PostgreSQL**：本地 port 5432，資料庫名 `eatsgood-db`，user `postgres`，password `eatsgood123`
+- **Redis**：Docker container `eatsgood-redis`，port 6379
+- **async driver**：`psycopg[binary]==3.3.3`（取代 asyncpg，Windows 免 Build Tools）
+- **sync driver（Alembic）**：`psycopg2-binary==2.9.12`
+
+### 後端 .env（已設定）
+```
+DATABASE_URL=postgresql+psycopg://postgres:eatsgood123@localhost:5432/eatsgood-db
+SECRET_KEY=eatsgood-super-secret-key-2026
+REDIS_URL=redis://localhost:6379
+CORS_ORIGINS=http://localhost:3000
+```
+
+### alembic.ini（已設定）
+```
+sqlalchemy.url = postgresql+psycopg2://postgres:eatsgood123@localhost:5432/eatsgood-db
+```
+
+### 後端啟動指令
+```powershell
+cd C:\Users\henry\coding-space\eatsgood-backend
+docker-compose up -d                    # 啟動 Redis
+uvicorn app.main:app --reload           # 啟動 FastAPI（port 8000）
+```
+
+---
+
+## 4. 資料庫 Schema（已 migration 完成 ✅）
 
 ```sql
--- 用戶
 users (id UUID PK, email, display_name, avatar_url,
-       auth_provider ENUM('google','line','email'), provider_id, created_at)
+       auth_provider ENUM('google','line','email'), provider_id,
+       hashed_password, created_at)
 
--- 吃貨等級（獨立表，避免更新鎖主表）
 user_trust_scores (
   user_id UUID PK → users.id,
-  recommendation_count INT,
-  received_likes INT,
-  received_saves INT,
+  recommendation_count INT, received_likes INT, received_saves INT,
   trust_score FLOAT,
   level ENUM('新手吃貨','資深吃貨','美食達人','頂級老饕'),
   updated_at TIMESTAMP
 )
 
--- 餐廳（用戶自建 + Google Places API 兩者並存）
 restaurants (
   id UUID PK, name, address, district, lat, lng,
   google_place_id VARCHAR UNIQUE NULL,
-  category, opening_hours JSONB,
+  category, opening_hours JSON,
   created_by UUID → users.id, created_at
 )
 
--- 品項
 menu_items (
   id UUID PK, restaurant_id UUID → restaurants.id,
   name, description, price DECIMAL NULL,
@@ -72,37 +98,26 @@ menu_items (
   created_by UUID → users.id, created_at
 )
 
--- 推薦（核心表）
 recommendations (
   id UUID PK, user_id UUID → users.id,
   restaurant_id UUID NULL → restaurants.id,
   menu_item_id  UUID NULL → menu_items.id,
-  caption TEXT, image_urls VARCHAR[],
-  trust_weight FLOAT,
-  created_at TIMESTAMP,
+  caption TEXT, image_urls JSON,
+  trust_weight FLOAT, created_at TIMESTAMP,
   UNIQUE (user_id, restaurant_id),
   UNIQUE (user_id, menu_item_id),
-  CONSTRAINT check_target CHECK (
-    (restaurant_id IS NOT NULL AND menu_item_id IS NULL) OR
-    (menu_item_id  IS NOT NULL AND restaurant_id IS NULL)
-  )
+  CHECK (restaurant_id XOR menu_item_id)
 )
 
--- 爆紅狀態
 viral_status (
   target_type ENUM('restaurant','menu_item') PK,
-  target_id   UUID PK,
-  unique_recommenders INT DEFAULT 0,
-  weighted_score      FLOAT DEFAULT 0,
-  is_viral            BOOLEAN DEFAULT FALSE,
-  went_viral_at       TIMESTAMP NULL,
-  updated_at          TIMESTAMP
+  target_id UUID PK,
+  unique_recommenders INT, weighted_score FLOAT,
+  is_viral BOOLEAN, went_viral_at TIMESTAMP, updated_at TIMESTAMP
 )
 
--- 互動行為
 recommendation_interactions (
-  user_id           UUID → users.id,
-  recommendation_id UUID → recommendations.id,
+  user_id UUID, recommendation_id UUID,
   type ENUM('like','save','me_too'),
   created_at TIMESTAMP,
   PRIMARY KEY (user_id, recommendation_id, type)
@@ -111,25 +126,26 @@ recommendation_interactions (
 
 ---
 
-## 4. API 路由（已確認）
+## 5. API 路由（已實作並測試 ✅）
 
 ```
-POST /auth/google       Google OAuth
-POST /auth/line         LINE OAuth
-POST /auth/register     Email 註冊
-POST /auth/login        Email 登入
+POST /auth/register     ✅ 測試通過
+POST /auth/login        ✅ 測試通過
+POST /auth/logout       ✅ JWT 黑名單
+POST /auth/google       預留（501）
+POST /auth/line         預留（501）
 
-GET  /users/me
+GET  /users/me          ✅ 測試通過
 PUT  /users/me
-GET  /users/{id}
+GET  /users/{id}        ✅
 
-GET  /restaurants
-POST /restaurants
+GET  /restaurants       ✅
+POST /restaurants       ✅ 測試通過
 GET  /restaurants/{id}
 POST /restaurants/{id}/menu-items
 GET  /menu-items/{id}
 
-POST /recommendations
+POST /recommendations   ✅（需 Redis running）
 GET  /recommendations/{id}
 POST /recommendations/{id}/like
 POST /recommendations/{id}/save
@@ -137,72 +153,71 @@ POST /recommendations/{id}/me-too
 
 GET  /feed/viral
 GET  /feed/trending
-GET  /search
+GET  /search?q=...
+GET  /health            ✅ 測試通過
 ```
+
+API 文件：http://localhost:8000/docs
 
 ---
 
-## 5. 後端安全機制（已確認）
+## 6. 後端安全機制（已實作）
 
 | 用途 | 機制 |
 |---|---|
-| Race Condition 防護 | Redis 分散式鎖（SETNX） |
-| JWT 黑名單 | Redis Key-Value + TTL |
+| Race Condition 防護 | `redis_lock` async context manager（SETNX + TTL） |
+| JWT 黑名單 | Redis Key-Value + TTL（logout 時寫入） |
 | 推薦唯一性 | DB UNIQUE constraint |
+| 互動唯一性 | DB PRIMARY KEY（user_id + recommendation_id + type） |
+| 密碼雜湊 | passlib bcrypt |
+| 關聯載入 | selectinload 避免 lazy-load MissingGreenlet 錯誤 |
 
-- JWT：python-jose，HS256，Access Token 60 分鐘
-- Pydantic v2：所有 Request/Response schema 驗證
-- Pytest + httpx：auth / recommendations / race condition 測試
-- viral_status 更新：Railway Cron Job 排程，非即時
+---
 
-### 後端專案結構
+## 7. 後端檔案結構（已完成 ✅）
+
 ```
 eatsgood-backend/
 ├── app/
-│   ├── main.py
-│   ├── config.py
-│   ├── database.py
-│   ├── redis_client.py
-│   ├── models/
-│   ├── schemas/
-│   ├── routers/        # auth / users / restaurants / menu_items / recommendations / feed
-│   ├── services/       # recommendation / viral / trust / auth
-│   └── dependencies/   # auth.py / rate_limit.py
-├── tests/
-│   ├── conftest.py
-│   ├── test_auth.py
-│   ├── test_recommendations.py
-│   └── test_viral.py
-├── alembic/
-├── docker-compose.yml
-├── Dockerfile
+│   ├── main.py                  # FastAPI app + CORS + router 掛載
+│   ├── config.py                # pydantic-settings，讀取 .env
+│   ├── database.py              # async engine（psycopg driver）+ get_db
+│   ├── redis_client.py          # aioredis 單例 + get_redis
+│   ├── models/                  # User, UserTrustScore, Restaurant, MenuItem,
+│   │                            # Recommendation, RecommendationInteraction, ViralStatus
+│   ├── schemas/                 # Pydantic v2 Request/Response schemas
+│   ├── routers/                 # auth, users, restaurants, menu_items,
+│   │                            # recommendations（_rec_query selectinload）, feed
+│   ├── services/                # auth（JWT/bcrypt）, recommendation（redis_lock）, feed
+│   └── dependencies/
+│       └── auth.py              # get_current_user（JWT + Redis blacklist + selectinload）
+├── tests/                       # 11 tests 全通過（SQLite in-memory + redis mock）
+├── alembic/                     # env.py 自動 import 所有 models
+├── alembic.ini                  # psycopg2://postgres:eatsgood123@localhost/eatsgood-db
+├── docker-compose.yml           # Redis 7 alpine
+├── Dockerfile                   # python:3.12-slim
 ├── railway.toml
+├── pytest.ini                   # asyncio_mode = auto
 ├── requirements.txt
-└── .env.example
+└── .env / .env.example
 ```
 
 ---
 
-## 6. 後端 requirements.txt（已確認）
+## 8. 後端 requirements.txt（關鍵套件）
 
 ```
 fastapi==0.135.1
 uvicorn[standard]==0.41.0
-starlette==0.52.1
-python-multipart==0.0.22
-pydantic==2.12.5
-pydantic-settings==2.9.1
-pydantic[email]==2.12.5
-python-dotenv==1.2.2
 SQLAlchemy==2.0.49
-asyncpg==0.30.0
-psycopg2-binary==2.9.12
+psycopg[binary]==3.3.3          # async PostgreSQL driver（Windows 免 Build Tools）
+psycopg2-binary==2.9.12         # sync driver（Alembic 專用）
 alembic==1.16.1
 redis[asyncio]==5.2.1
 python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
-cryptography==46.0.6
+pydantic==2.12.5
+pydantic-settings==2.9.1
 httpx==0.28.1
 boto3==1.38.0
 pytest==8.3.5
@@ -211,7 +226,7 @@ pytest-asyncio==0.26.0
 
 ---
 
-## 7. 吃貨等級計算邏輯（已確認）
+## 9. 吃貨等級計算邏輯（已實作）
 
 ```
 trust_score = (recommendation_count × 1.0)
@@ -226,59 +241,75 @@ trust_score = (recommendation_count × 1.0)
 
 ---
 
-## 8. 前端現況（2026-04-24 完成）
+## 10. 前端現況（UI 完成，尚未串接後端）
 
-### 已完成 ✅
-- Next.js 16 專案初始化（Tailwind v3 + Framer Motion）
-- 完整 Component 拆分：
-  - `Nav.tsx`：Sticky + 毛玻璃 + Scroll 效果
-  - `Hero.tsx`：Viral Showcase 大圖 + 信任密度
-  - `FeedGrid.tsx`：響應式 1~4 欄格線
-  - `DishCard.tsx`：Hover 浮起 + 快速愛心/收藏
-  - `DishModal.tsx`：Spring 動畫 + 左圖右文
-  - `TrustDensity.tsx`：進度條 + Avatar 堆疊
-  - `FilterRail.tsx`：Hashtag chip 實際過濾
-  - `SearchBar.tsx`：全屏搜尋 Overlay + 即時結果
-  - `RecommendModal.tsx`：三步驟推薦表單
-  - `AuthModal.tsx`：Google / LINE / Email 登入
-  - `ThemeToggle.tsx`：深色/淺色模式切換
-- `context/AuthContext.tsx`：全站登入狀態管理
-- `context/ThemeContext.tsx`：深色模式（CSS 變數 + localStorage）
-- `lib/types.ts`：完整 TypeScript 型別
-- `lib/mockData.ts`：8 筆 mock 資料 + Viral 品項
-- **Auth Guard**：未登入點愛心/收藏 → 自動彈出登入 Modal
-- **深色模式**：全站 CSS 變數，自動偵測系統偏好
-
-### 待開發（前端）
-- [ ] 接 API（`getDishes()` / `getHeroDish()` / `recommendDish(id)`）
-- [ ] 用戶個人頁面
-- [ ] 登入後換成真實用戶頭像
+### 前端檔案結構
+```
+eatsgood/
+├── app/
+│   ├── globals.css          # CSS 變數（Light / Dark）+ Tailwind 指令
+│   ├── layout.tsx           # FOUC 防閃爍腳本 + ThemeProvider + AuthProvider
+│   └── page.tsx             # 主頁面
+├── components/
+│   ├── Nav.tsx              # Sticky + 毛玻璃 + ThemeToggle + 登入狀態
+│   ├── Hero.tsx             # Viral Showcase 大圖 + 信任密度進度條
+│   ├── FeedGrid.tsx         # 響應式 1~4 欄格線
+│   ├── DishCard.tsx         # next/image (fill + sizes) + Auth Guard
+│   ├── DishModal.tsx        # Spring 動畫 + 左圖右文 + 互動按鈕
+│   ├── TrustDensity.tsx     # 進度條 + Avatar 堆疊
+│   ├── FilterRail.tsx       # Hashtag chip 過濾 Feed
+│   ├── SearchBar.tsx        # 全屏搜尋 Overlay
+│   ├── RecommendModal.tsx   # 三步驟推薦表單（useScrollLock）
+│   ├── AuthModal.tsx        # Google / LINE / Email 登入（目前 mock）
+│   └── ThemeToggle.tsx      # 深色模式切換
+├── context/
+│   ├── AuthContext.tsx      # 全站登入狀態（目前 mock login）
+│   └── ThemeContext.tsx     # dark/light + localStorage
+├── hooks/
+│   └── useScrollLock.ts
+├── lib/
+│   ├── types.ts             # TypeScript 型別定義
+│   └── mockData.ts          # 8 筆 mock 推薦（待替換）
+└── tailwind.config.js       # CSS 變數橋接
+```
 
 ### 設計 CSS 變數（Light / Dark）
 ```css
 /* Light */
 --bg: #FAF7F2;  --card: #FFFFFF;  --surface: #F0EBE4;
---ink: #1A0F08; --ink2: #5B4E45;  --ink3: #9A8D83;
---brand: #EA580C; --brand-soft: #FFF1E6;
+--ink: #1A0F08;  --ink2: #5B4E45;  --ink3: #9A8D83;
+--brand: #EA580C;  --brand-soft: #FFF1E6;
+--overlay: rgba(26,15,8,0.6);
 
 /* Dark */
 --bg: #1C1C1E;  --card: #2C2C2E;  --surface: #3A3A3C;
---ink: #F2EDE8; --ink2: #C4B8B0;  --ink3: #7A6E68;
---brand: #F97316; --brand-soft: #2A1F15;
+--ink: #F2EDE8;  --ink2: #C4B8B0;  --ink3: #7A6E68;
+--brand: #F97316;  --brand-soft: #2A1F15;
+--overlay: rgba(0,0,0,0.75);
 ```
 
 ---
 
-## 9. 下一步（後端）
+## 11. 待開發（下一步）
 
-1. **搭骨架**：`eatsgood-backend/` 完整 boilerplate
-2. **DB Migration**：Alembic 建立所有表（連接本地 `eatsgood-db`）
-3. **Auth 模組**：JWT + Google / LINE / Email
-4. **Recommendations API**：核心邏輯 + Redis 分散式鎖
-5. **Feed API**：viral / trending / search
-6. **串接前端**：替換 mock data
-7. **部署**：Vercel（前端）+ Railway（後端）
+### 優先：前後端串接
+- [ ] 建立 `lib/api.ts`：封裝所有 fetch 呼叫（帶 JWT token，base URL `http://localhost:8000`）
+- [ ] `AuthContext.tsx` 登入/註冊改為打真實 `/auth/login` 和 `/auth/register`
+- [ ] `page.tsx` 的 Feed 改為打 `/feed/trending` 真實 API
+- [ ] `FeedGrid.tsx` / `DishCard.tsx` 接真實推薦資料
+- [ ] `SearchBar.tsx` 接 `/search?q=...`
+- [ ] `next.config.ts` 加 `images.remotePatterns`（Unsplash / pravatar / R2）
+
+### 功能擴充
+- [ ] 用戶個人頁面（前端）
+- [ ] `RecommendModal.tsx` 打真實 `/recommendations` API
+- [ ] Google / LINE OAuth（後端 services/auth.py 已預留位置）
+- [ ] Cloudflare R2 圖片上傳（boto3 已在 requirements）
+
+### 部署
+- [ ] Vercel（前端）
+- [ ] Railway（後端 + PostgreSQL）
 
 ---
 
-*最後更新：2026-04-24 | 由 Claude Sonnet 4.6 生成*
+*最後更新：2026-04-25 | 由 Claude Sonnet 4.6 生成*

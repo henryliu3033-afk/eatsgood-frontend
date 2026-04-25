@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Heart, Bookmark, MapPin } from 'lucide-react'
 import { Recommendation } from '@/lib/types'
@@ -40,20 +41,18 @@ export default function DishCard({ item, onClick, index = 0 }: DishCardProps) {
 
   return (
     <motion.article
-      className="group cursor-pointer rounded-2xl overflow-hidden relative"
-      style={{ background: 'var(--card)', boxShadow: 'var(--shadow-sm)' }}
+      className="group cursor-pointer rounded-2xl overflow-hidden relative bg-card shadow-sm hover:shadow-lg"
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.35 }}
-      whileHover={{ y: -4, boxShadow: 'var(--shadow-lg)', transition: { duration: 0.2 } }}
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
       onClick={() => onClick(item)}
     >
       {/* 未登入提示 toast */}
       <AnimatePresence>
         {hint && (
           <motion.div
-            className="absolute top-3 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg pointer-events-none"
-            style={{ background: 'var(--ink)', color: 'var(--bg)' }}
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg pointer-events-none bg-ink text-bg"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
@@ -63,12 +62,14 @@ export default function DishCard({ item, onClick, index = 0 }: DishCardProps) {
         )}
       </AnimatePresence>
 
-      {/* Image */}
-      <div className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
-        <img
+      {/* Image 容器 */}
+      <div className="relative overflow-hidden aspect-4/3">
+        <Image
           src={item.image_urls[0]}
           alt={item.menu_item?.name ?? item.restaurant.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 60%)' }} />
@@ -94,8 +95,7 @@ export default function DishCard({ item, onClick, index = 0 }: DishCardProps) {
         {/* Viral badge */}
         {item.me_too_count >= 100 && (
           <div className="absolute top-3 left-3">
-            <span className="text-xs font-bold px-2 py-1 rounded-full text-white"
-              style={{ background: 'var(--brand)' }}>
+            <span className="text-xs font-bold px-2 py-1 rounded-full text-white bg-brand">
               🔥 全城熱議
             </span>
           </div>
@@ -105,33 +105,38 @@ export default function DishCard({ item, onClick, index = 0 }: DishCardProps) {
       {/* Content */}
       <div className="p-4 space-y-3">
         <div>
-          <h3 className="font-bold text-base leading-tight line-clamp-1" style={{ color: 'var(--ink)' }}>
+          <h3 className="font-bold text-base leading-tight line-clamp-1 text-ink">
             {item.menu_item?.name ?? item.restaurant.name}
           </h3>
-          <div className="flex items-center gap-1 mt-1">
-            <MapPin size={11} style={{ color: 'var(--ink3)' }} />
-            <span className="text-xs truncate" style={{ color: 'var(--ink3)' }}>
+          <div className="flex items-center gap-1 mt-1 text-ink-3">
+            <MapPin size={11} />
+            <span className="text-xs truncate">
               {item.restaurant.name} · {item.restaurant.district}
             </span>
           </div>
         </div>
 
-        <p className="text-sm line-clamp-2 leading-relaxed" style={{ color: 'var(--ink2)' }}>
+        <p className="text-sm line-clamp-2 leading-relaxed text-ink-2">
           {item.caption}
         </p>
 
         <TrustDensity count={item.me_too_count} compact />
 
-        <div className="flex items-center justify-between pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-center justify-between pt-1 border-t border-border">
           <div className="flex items-center gap-1.5">
-            <img src={item.user.avatar_url} alt={item.user.display_name}
-              className="w-5 h-5 rounded-full object-cover" />
-            <span className="text-xs font-medium" style={{ color: 'var(--ink2)' }}>
+            <Image 
+              src={item.user.avatar_url} 
+              alt={item.user.display_name}
+              width={20}
+              height={20}
+              className="w-5 h-5 rounded-full object-cover" 
+            />
+            <span className="text-xs font-medium text-ink-2">
               {TRUST_LEVEL_BADGE[item.user.trust_level]} {item.user.display_name}
             </span>
           </div>
           {item.menu_item?.price && (
-            <span className="text-xs font-semibold" style={{ color: 'var(--brand)' }}>
+            <span className="text-xs font-semibold text-brand">
               NT${item.menu_item.price}
             </span>
           )}

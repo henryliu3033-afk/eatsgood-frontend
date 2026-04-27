@@ -14,6 +14,14 @@ export const metadata: Metadata = {
   description: "強推必吃品項，100 人推薦觸發全城熱議。",
 };
 
+const themeScript = `
+  try {
+    let isDark = localStorage.getItem('eatsgood-theme') === 'dark' ||
+                (!('eatsgood-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (isDark) document.documentElement.classList.add('dark');
+  } catch (_) {}
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,18 +29,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-TW" className={`${geist.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* App Router 裡 beforeInteractive 不支援，用原生 script */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-full bg-bg text-ink transition-colors duration-300">
-        {/* 阻斷渲染的腳本，解決深色模式閃爍 FOUC */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try {
-                let isDark = localStorage.getItem('eatsgood-theme') === 'dark' ||
-                            (!('eatsgood-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                if (isDark) document.documentElement.classList.add('dark');
-              } catch (_) {}
-            `,
-          }}
-        />
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>

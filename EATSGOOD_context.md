@@ -67,6 +67,12 @@ docker-compose up -d                    # 啟動 Redis
 uvicorn app.main:app --reload           # 啟動 FastAPI（port 8000）
 ```
 
+### 前端啟動指令
+```powershell
+cd C:\Users\henry\coding-space\eatsgood
+npm run dev                             # 啟動 Next.js（port 3000）
+```
+
 ---
 
 ## 4. 資料庫 Schema（已 migration 完成 ✅）
@@ -139,21 +145,20 @@ GET  /users/me          ✅ 測試通過
 PUT  /users/me
 GET  /users/{id}        ✅
 
-GET  /restaurants       ✅
-POST /restaurants       ✅ 測試通過
+GET  /restaurants       ✅（支援 ?q= 名稱搜尋）
+POST /restaurants       ✅ 測試通過（需登入）
 GET  /restaurants/{id}
 POST /restaurants/{id}/menu-items
-GET  /menu-items/{id}
 
-POST /recommendations   ✅（需 Redis running）
+POST /recommendations   ✅（需 Redis running + 登入）
 GET  /recommendations/{id}
 POST /recommendations/{id}/like
 POST /recommendations/{id}/save
 POST /recommendations/{id}/me-too
 
-GET  /feed/viral
-GET  /feed/trending
-GET  /search?q=...
+GET  /feed/viral        ✅（response_model=list[FeedItemOut]）
+GET  /feed/trending     ✅（response_model=list[FeedItemOut]）
+GET  /feed/search?q=    ✅（response_model=list[RecommendationOut]）
 GET  /health            ✅ 測試通過
 ```
 
@@ -185,48 +190,120 @@ eatsgood-backend/
 │   ├── redis_client.py          # aioredis 單例 + get_redis
 │   ├── models/                  # User, UserTrustScore, Restaurant, MenuItem,
 │   │                            # Recommendation, RecommendationInteraction, ViralStatus
-│   ├── schemas/                 # Pydantic v2 Request/Response schemas
-│   ├── routers/                 # auth, users, restaurants, menu_items,
-│   │                            # recommendations（_rec_query selectinload）, feed
-│   ├── services/                # auth（JWT/bcrypt）, recommendation（redis_lock）, feed
+│   ├── schemas/
+│   │   ├── user.py              # UserOut, TrustScoreOut
+│   │   ├── auth.py              # RegisterRequest, LoginRequest, TokenResponse
+│   │   ├── restaurant.py        # RestaurantCreate, RestaurantOut
+│   │   ├── menu_item.py         # MenuItemCreate, MenuItemOut
+│   │   ├── recommendation.py    # RecommendationCreate, RecommendationOut
+│   │   └── feed.py              # FeedItemOut（RecommendationOut + viral 資訊）
+│   ├── routers/
+│   │   ├── auth.py
+│   │   ├── users.py
+│   │   ├── restaurants.py       # GET 支援 ?q= 名稱搜尋
+│   │   ├── menu_items.py
+│   │   ├── recommendations.py   # _rec_query() 含完整 selectinload
+│   │   └── feed.py              # response_model=list[FeedItemOut]
+│   ├── services/
+│   │   ├── auth.py              # JWT/bcrypt
+│   │   ├── recommendation.py    # redis_lock + trust_score + viral_status
+│   │   └── feed.py              # selectinload 修正版（user/restaurant/menu_item）
 │   └── dependencies/
 │       └── auth.py              # get_current_user（JWT + Redis blacklist + selectinload）
 ├── tests/                       # 11 tests 全通過（SQLite in-memory + redis mock）
-├── alembic/                     # env.py 自動 import 所有 models
-├── alembic.ini                  # psycopg2://postgres:eatsgood123@localhost/eatsgood-db
+├── alembic/
+├── alembic.ini
 ├── docker-compose.yml           # Redis 7 alpine
-├── Dockerfile                   # python:3.12-slim
+├── Dockerfile
 ├── railway.toml
-├── pytest.ini                   # asyncio_mode = auto
+├── pytest.ini
 ├── requirements.txt
 └── .env / .env.example
 ```
 
 ---
 
-## 8. 後端 requirements.txt（關鍵套件）
+## 8. 前端檔案結構（UI + API 串接完成 ✅）
 
 ```
-fastapi==0.135.1
-uvicorn[standard]==0.41.0
-SQLAlchemy==2.0.49
-psycopg[binary]==3.3.3          # async PostgreSQL driver（Windows 免 Build Tools）
-psycopg2-binary==2.9.12         # sync driver（Alembic 專用）
-alembic==1.16.1
-redis[asyncio]==5.2.1
-python-jose[cryptography]==3.5.0
-passlib[bcrypt]==1.7.4
-pydantic==2.12.5
-pydantic-settings==2.9.1
-httpx==0.28.1
-boto3==1.38.0
-pytest==8.3.5
-pytest-asyncio==0.26.0
+eatsgood/
+├── app/
+│   ├── globals.css          # CSS 變數（Light / Dark）+ Tailwind 指令
+│   ├── layout.tsx           # FOUC 防閃爍腳本（<script dangerouslySetInnerHTML />）
+│   │                        # + ThemeProvider + AuthProvider
+│   └── page.tsx             # 主頁面：mount 時抓 /feed/trending，失敗 fallback mock
+├── components/
+│   ├── Nav.tsx              # Sticky + 毛玻璃 + avatar_url null fallback（首字母）
+│   │                        # + async logout
+│   ├── Hero.tsx             # Viral Showcase 大圖 + 信任密度進度條
+│   ├── FeedGrid.tsx         # 響應式 1~4 欄格線
+│   ├── DishCard.tsx         # next/image (fill + sizes) + Auth Guard
+│   ├── DishModal.tsx        # Spring 動畫 + 左圖右文 + 互動按鈕
+│   ├── TrustDensity.tsx     # 進度條 + Avatar 堆疊
+│   ├── FilterRail.tsx       # Hashtag chip 過濾 Feed
+│   ├── SearchBar.tsx        # 全屏搜尋 Overlay
+│   ├── RecommendModal.tsx   # 三步驟推薦表單（接真實 API）
+│   │                        # Step1: 搜尋 /restaurants?q= (debounce 300ms)
+│   │                        # Step2: 品項名稱 + 照片（本地預覽）
+│   │                        # Step3: caption → POST /recommendations
+│   │                        # onSubmitSuccess → 即時插入 Feed 頂部
+│   ├── AuthModal.tsx        # Email 登入 / 註冊雙 Tab 表單（接真實 API）
+│   │                        # Google / LINE 標示「即將推出」
+│   └── ThemeToggle.tsx      # 深色模式切換
+├── context/
+│   ├── AuthContext.tsx      # 真實 JWT auth（loginWithEmail / registerWithEmail / logout）
+│   │                        # mount 時自動恢復登入（getToken → /users/me）
+│   └── ThemeContext.tsx     # dark/light + localStorage
+├── hooks/
+│   └── useScrollLock.ts
+└── lib/
+    ├── api.ts               # ✅ 新建：fetch wrapper + token 管理（localStorage）
+    │                        # apiLogin / apiRegister / apiLogout / apiGetMe
+    │                        # apiGetTrendingFeed / apiGetViralFeed / apiSearchFeed
+    │                        # apiSearchRestaurants / apiCreateRestaurant
+    │                        # apiCreateRecommendation
+    ├── types.ts             # TypeScript 型別定義（前端用）
+    └── mockData.ts          # 8 筆 mock 推薦（後端無資料時 fallback）
 ```
 
 ---
 
-## 9. 吃貨等級計算邏輯（已實作）
+## 9. 前後端串接現況
+
+| 功能 | 狀態 |
+|---|---|
+| Email 登入 / 註冊 | ✅ 串接（/auth/login + /auth/register） |
+| JWT token 儲存 | ✅ localStorage，mount 自動恢復 |
+| 登出 | ✅ /auth/logout（清除 Redis 黑名單） |
+| Feed 首頁 | ✅ /feed/trending，後端離線自動 fallback mock |
+| 餐廳搜尋（推薦表單） | ✅ /restaurants?q=（debounce 300ms） |
+| 新增餐廳 | ✅ POST /restaurants（需登入） |
+| 提交推薦 | ✅ POST /recommendations（需登入 + Redis） |
+| Google / LINE OAuth | ❌ 後端預留 501，前端 UI 標示「即將推出」 |
+| 圖片上傳（R2） | ❌ 前端本地預覽，尚未上傳 |
+| 搜尋欄（SearchBar） | ⚠️ 目前搜尋 mock data，未串接 /feed/search |
+| 互動（Like / Save / Me Too） | ⚠️ UI 按鈕存在，API 尚未串接 |
+| 用戶個人頁面 | ❌ 尚未建立 |
+
+---
+
+## 10. 已知 Bug / 技術細節
+
+- `next.config.ts` 的 `experimental.turbo` 會有 TS2353 error（Next.js 版本相容問題，不影響運行）
+- `index.css` 在 VSCode 顯示 `@theme` unknown rule 警告（Tailwind 語法，非真實錯誤）
+- `dangerouslySetInnerHTML` 必須是 `<script />` 的 **JSX prop**，不能放在子節點內
+- feed service 的 `selectinload` 鏈：
+  ```python
+  .options(
+    selectinload(Recommendation.user).selectinload(User.trust_score),
+    selectinload(Recommendation.restaurant),
+    selectinload(Recommendation.menu_item),
+  )
+  ```
+
+---
+
+## 11. 吃貨等級計算邏輯（已實作）
 
 ```
 trust_score = (recommendation_count × 1.0)
@@ -241,75 +318,25 @@ trust_score = (recommendation_count × 1.0)
 
 ---
 
-## 10. 前端現況（UI 完成，尚未串接後端）
+## 12. 下一步優先清單
 
-### 前端檔案結構
-```
-eatsgood/
-├── app/
-│   ├── globals.css          # CSS 變數（Light / Dark）+ Tailwind 指令
-│   ├── layout.tsx           # FOUC 防閃爍腳本 + ThemeProvider + AuthProvider
-│   └── page.tsx             # 主頁面
-├── components/
-│   ├── Nav.tsx              # Sticky + 毛玻璃 + ThemeToggle + 登入狀態
-│   ├── Hero.tsx             # Viral Showcase 大圖 + 信任密度進度條
-│   ├── FeedGrid.tsx         # 響應式 1~4 欄格線
-│   ├── DishCard.tsx         # next/image (fill + sizes) + Auth Guard
-│   ├── DishModal.tsx        # Spring 動畫 + 左圖右文 + 互動按鈕
-│   ├── TrustDensity.tsx     # 進度條 + Avatar 堆疊
-│   ├── FilterRail.tsx       # Hashtag chip 過濾 Feed
-│   ├── SearchBar.tsx        # 全屏搜尋 Overlay
-│   ├── RecommendModal.tsx   # 三步驟推薦表單（useScrollLock）
-│   ├── AuthModal.tsx        # Google / LINE / Email 登入（目前 mock）
-│   └── ThemeToggle.tsx      # 深色模式切換
-├── context/
-│   ├── AuthContext.tsx      # 全站登入狀態（目前 mock login）
-│   └── ThemeContext.tsx     # dark/light + localStorage
-├── hooks/
-│   └── useScrollLock.ts
-├── lib/
-│   ├── types.ts             # TypeScript 型別定義
-│   └── mockData.ts          # 8 筆 mock 推薦（待替換）
-└── tailwind.config.js       # CSS 變數橋接
-```
+### 高優先（功能完整性）
+- [ ] `SearchBar.tsx` 接真實 `/feed/search?q=`（目前搜尋 mock data）
+- [ ] 互動按鈕串接：`/recommendations/{id}/like`、`/save`、`/me-too`
+- [ ] `next.config.ts` 加 `images.remotePatterns`（Unsplash / pravatar / R2 domain）
+- [ ] 登入後 RecommendModal 若未登入，跳轉 AuthModal（目前直接觸發 openAuthModal）
 
-### 設計 CSS 變數（Light / Dark）
-```css
-/* Light */
---bg: #FAF7F2;  --card: #FFFFFF;  --surface: #F0EBE4;
---ink: #1A0F08;  --ink2: #5B4E45;  --ink3: #9A8D83;
---brand: #EA580C;  --brand-soft: #FFF1E6;
---overlay: rgba(26,15,8,0.6);
+### 中優先（功能擴充）
+- [ ] 用戶個人頁面 `/profile/[id]`（顯示 trust_score + 歷史推薦）
+- [ ] Cloudflare R2 圖片上傳（boto3 已在 requirements，後端 route 待建）
+- [ ] Hero 接真實 `/feed/viral`（目前還是 MOCK_VIRAL_ITEM）
+- [ ] 推薦表單 Step2 完成後建立 menu_item（`POST /restaurants/{id}/menu-items`）
 
-/* Dark */
---bg: #1C1C1E;  --card: #2C2C2E;  --surface: #3A3A3C;
---ink: #F2EDE8;  --ink2: #C4B8B0;  --ink3: #7A6E68;
---brand: #F97316;  --brand-soft: #2A1F15;
---overlay: rgba(0,0,0,0.75);
-```
+### 低優先（部署 / OAuth）
+- [ ] Google / LINE OAuth（後端 501 預留位，需填 Client ID/Secret）
+- [ ] Vercel 部署（前端）
+- [ ] Railway 部署（後端 + PostgreSQL）
 
 ---
 
-## 11. 待開發（下一步）
-
-### 優先：前後端串接
-- [ ] 建立 `lib/api.ts`：封裝所有 fetch 呼叫（帶 JWT token，base URL `http://localhost:8000`）
-- [ ] `AuthContext.tsx` 登入/註冊改為打真實 `/auth/login` 和 `/auth/register`
-- [ ] `page.tsx` 的 Feed 改為打 `/feed/trending` 真實 API
-- [ ] `FeedGrid.tsx` / `DishCard.tsx` 接真實推薦資料
-- [ ] `SearchBar.tsx` 接 `/search?q=...`
-- [ ] `next.config.ts` 加 `images.remotePatterns`（Unsplash / pravatar / R2）
-
-### 功能擴充
-- [ ] 用戶個人頁面（前端）
-- [ ] `RecommendModal.tsx` 打真實 `/recommendations` API
-- [ ] Google / LINE OAuth（後端 services/auth.py 已預留位置）
-- [ ] Cloudflare R2 圖片上傳（boto3 已在 requirements）
-
-### 部署
-- [ ] Vercel（前端）
-- [ ] Railway（後端 + PostgreSQL）
-
----
-
-*最後更新：2026-04-25 | 由 Claude Sonnet 4.6 生成*
+*最後更新：2026-04-27 | 由 Claude Sonnet 4.6 生成*

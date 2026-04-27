@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import LevelRoadmap from '@/components/LevelRoadmap'
 
 interface AuthModalProps {
   open: boolean
@@ -251,54 +252,59 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
 
             {/* Register form */}
             {tab === 'register' && (
-              <form onSubmit={handleRegister} className="space-y-3">
-                <input
-                  type="email"
-                  value={regEmail}
-                  onChange={e => setRegEmail(e.target.value)}
-                  placeholder="Email"
-                  autoComplete="email"
-                  className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--surface)', color: 'var(--ink)' }}
-                />
-                <input
-                  type="text"
-                  value={regName}
-                  onChange={e => setRegName(e.target.value)}
-                  placeholder="顯示名稱（例如：林小雨）"
-                  autoComplete="name"
-                  className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--surface)', color: 'var(--ink)' }}
-                />
-                <div className="relative">
+              <div>
+                <form onSubmit={handleRegister} className="space-y-3">
                   <input
-                    type={regShowPw ? 'text' : 'password'}
-                    value={regPassword}
-                    onChange={e => setRegPassword(e.target.value)}
-                    placeholder="密碼（至少 8 個字元）"
-                    autoComplete="new-password"
-                    className="w-full px-4 py-3 rounded-xl text-sm outline-none pr-11"
+                    type="email"
+                    value={regEmail}
+                    onChange={e => setRegEmail(e.target.value)}
+                    placeholder="Email"
+                    autoComplete="email"
+                    className="w-full px-4 py-3 rounded-xl text-sm outline-none"
                     style={{ background: 'var(--surface)', color: 'var(--ink)' }}
                   />
+                  <input
+                    type="text"
+                    value={regName}
+                    onChange={e => setRegName(e.target.value)}
+                    placeholder="顯示名稱（例如：林小雨）"
+                    autoComplete="name"
+                    className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ background: 'var(--surface)', color: 'var(--ink)' }}
+                  />
+                  <div className="relative">
+                    <input
+                      type={regShowPw ? 'text' : 'password'}
+                      value={regPassword}
+                      onChange={e => setRegPassword(e.target.value)}
+                      placeholder="密碼（至少 8 個字元）"
+                      autoComplete="new-password"
+                      className="w-full px-4 py-3 rounded-xl text-sm outline-none pr-11"
+                      style={{ background: 'var(--surface)', color: 'var(--ink)' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRegShowPw(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2"
+                      style={{ color: 'var(--ink3)' }}
+                    >
+                      {regShowPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                   <button
-                    type="button"
-                    onClick={() => setRegShowPw(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--ink3)' }}
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-95"
+                    style={{ background: 'var(--brand)', color: '#fff' }}
                   >
-                    {regShowPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
+                    建立帳號
                   </button>
-                </div>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-95"
-                  style={{ background: 'var(--brand)', color: '#fff' }}
-                >
-                  {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
-                  建立帳號
-                </button>
-              </form>
+                </form>
+
+                {/* 升級路線圖 */}
+                <LevelRoadmap />
+              </div>
             )}
 
             <p className="text-xs text-center mt-5" style={{ color: 'var(--ink3)' }}>

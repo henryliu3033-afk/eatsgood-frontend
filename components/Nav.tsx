@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Plus, User, LogOut } from 'lucide-react'
 import SearchBar from './SearchBar'
@@ -16,6 +17,7 @@ interface NavProps {
 
 export default function Nav({ onAuthOpen, onRecommendOpen, onSearchSelect }: NavProps) {
   const { user, isLoggedIn, logout } = useAuth()
+  const router = useRouter()
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -68,26 +70,33 @@ export default function Nav({ onAuthOpen, onRecommendOpen, onSearchSelect }: Nav
           {/* 登入 / 用戶頭像 */}
           {isLoggedIn && user ? (
             <div className="flex items-center gap-2">
-              {user.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.display_name}
-                  className="w-9 h-9 rounded-full object-cover"
-                  style={{ outline: '2px solid var(--brand)', outlineOffset: '1px' }}
-                />
-              ) : (
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
-                  style={{
-                    background: 'var(--brand)',
-                    color: '#fff',
-                    outline: '2px solid var(--brand)',
-                    outlineOffset: '1px',
-                  }}
-                >
-                  {user.display_name.charAt(0)}
-                </div>
-              )}
+              {/* Avatar → 個人頁 */}
+              <button
+                onClick={() => router.push(`/profile/${user.id}`)}
+                className="transition-all active:scale-90 hover:opacity-90"
+                title={`${user.display_name} 的頁面`}
+              >
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.display_name}
+                    className="w-9 h-9 rounded-full object-cover"
+                    style={{ outline: '2px solid var(--brand)', outlineOffset: '1px' }}
+                  />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
+                    style={{
+                      background: 'var(--brand)',
+                      color: '#fff',
+                      outline: '2px solid var(--brand)',
+                      outlineOffset: '1px',
+                    }}
+                  >
+                    {user.display_name.charAt(0)}
+                  </div>
+                )}
+              </button>
               <button
                 onClick={() => logout()}
                 className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95"

@@ -164,6 +164,10 @@ export async function apiGetMe(): Promise<UserOut> {
   return apiFetch<UserOut>('/users/me', {}, true)
 }
 
+export async function apiGetUser(id: string): Promise<UserOut> {
+  return apiFetch<UserOut>(`/users/${id}`, {}, true)
+}
+
 // ─── Feed ────────────────────────────────────────────────────────────────────
 
 export async function apiGetTrendingFeed(
@@ -224,4 +228,46 @@ export async function apiCreateRecommendation(data: {
     method: 'POST',
     body: JSON.stringify(data),
   }, true)
+}
+
+// ─── Interactions ─────────────────────────────────────────────────────────────
+
+export async function apiLikeRecommendation(id: string): Promise<void> {
+  return apiFetch<void>(`/recommendations/${id}/like`, { method: 'POST' }, true)
+}
+
+export async function apiSaveRecommendation(id: string): Promise<void> {
+  return apiFetch<void>(`/recommendations/${id}/save`, { method: 'POST' }, true)
+}
+
+export async function apiMeTooRecommendation(id: string): Promise<void> {
+  return apiFetch<void>(`/recommendations/${id}/me-too`, { method: 'POST' }, true)
+}
+
+// ─── Image Upload ─────────────────────────────────────────────────────────────
+
+export interface UploadedImage {
+  url: string
+  key: string
+}
+
+/** 上傳圖片到 R2，回傳公開 URL */
+export async function apiUploadImage(file: File): Promise<UploadedImage> {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', file)
+  // 不設 Content-Type，讓瀏覽器自動加 multipart boundary
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${API_BASE}/images/upload`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+  if (!res.ok) {
+    let detail = res.statusText
+    try { const body = await res.json(); detail = body.detail ?? detail } catch {}
+    throw new ApiError(res.status, detail)
+  }
+  return res.json()
 }
